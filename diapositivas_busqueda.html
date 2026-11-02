@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101522">
+  <title>Recorridos de árboles: BFS y DFS | Guía en las Sombras</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101522;
+      --panel: #192235;
+      --panel-light: #202c42;
+      --text: #edf2fb;
+      --muted: #aab8cf;
+      --blue: #67b7ff;
+      --green: #6ee7b7;
+      --orange: #ffc078;
+      --line: #35435d;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 18% 0%, #1c3150 0, transparent 38rem),
+        radial-gradient(ellipse at 100% 100%, #172d35 0, transparent 36rem),
+        var(--bg);
+      color: var(--text);
+      font: 16px/1.55 "Segoe UI", Arial, sans-serif;
+    }
+
+    button { font: inherit; }
+
+    .deck {
+      width: min(1120px, calc(100% - 36px));
+      height: calc(100vh - 36px);
+      margin: 18px auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(16, 21, 34, .88);
+      box-shadow: 0 30px 90px #050811aa;
+    }
+
+    .deck:fullscreen {
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .topbar, .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 24px;
+      background: #111827;
+      flex: 0 0 auto;
+    }
+
+    .topbar { border-bottom: 1px solid var(--line); }
+    .brand { color: var(--muted); font-size: .88rem; letter-spacing: .08em; text-transform: uppercase; }
+    .brand strong { color: var(--green); }
+    .key-hint { color: var(--muted); font-size: .86rem; }
+
+    .progress { height: 4px; flex: 0 0 4px; background: #263248; }
+    .progress > span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--blue), var(--green)); transition: width .25s ease; }
+
+    .slides { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+    .slide {
+      display: none;
+      height: 100%;
+      min-height: 0;
+      padding: clamp(30px, 6vw, 72px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      animation: enter .32s ease both;
+    }
+    .slide.active { display: flex; flex-direction: column; justify-content: center; }
+    @keyframes enter { from { opacity: .3; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    .eyebrow { color: var(--green); font-size: .78rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { max-width: 800px; margin: 14px 0 12px; font-size: clamp(3rem, 8vw, 6.2rem); line-height: .98; letter-spacing: -.055em; }
+    h2 { margin: 10px 0 18px; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.08; letter-spacing: -.035em; }
+    h3 { margin: 0 0 8px; font-size: 1.2rem; }
+    p { margin: 8px 0 14px; color: var(--muted); }
+    .lead { max-width: 760px; font-size: clamp(1.15rem, 2.4vw, 1.45rem); }
+    .accent { color: var(--blue); }
+    .green { color: var(--green); }
+    .orange { color: var(--orange); }
+
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(145deg, #1d2940, #151d2d); }
+    .card p:last-child { margin-bottom: 0; }
+    .tag { display: inline-block; padding: 4px 10px; border-radius: 99px; background: #263650; color: var(--blue); font-size: .8rem; font-weight: 700; }
+    .callout { margin-top: 18px; padding: 16px 18px; border-left: 4px solid var(--green); border-radius: 8px; background: #142a2a; color: #d7f8e9; }
+    .callout.warning { border-color: var(--orange); background: #302719; color: #ffebcf; }
+    .math { margin: 16px 0; padding: 16px; border-radius: 12px; background: #0c111d; color: var(--green); font: 1.05rem/1.65 Consolas, monospace; overflow-x: auto; }
+    .trace { width: 100%; margin-top: 12px; border-collapse: collapse; font-size: .9rem; }
+    .trace th, .trace td { padding: 8px 10px; }
+    .trace th { color: var(--muted); background: transparent; }
+    .trace td:first-child { color: var(--blue); font-weight: 700; white-space: nowrap; }
+
+    .tree-wrap { margin: 12px auto; width: min(560px, 100%); }
+    svg.tree { width: 100%; height: auto; overflow: visible; }
+    .tree line { stroke: #51617b; stroke-width: 3; }
+    .tree circle { fill: #202c42; stroke: #66809f; stroke-width: 3; }
+    .tree text { fill: var(--text); font: 700 19px "Segoe UI", Arial, sans-serif; text-anchor: middle; dominant-baseline: central; }
+    .order { display: flex; justify-content: center; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
+    .order span { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--panel); font-weight: 800; }
+    .order.bfs span:nth-child(-n+3) { border-color: var(--blue); color: var(--blue); }
+    .order.dfs span:nth-child(1), .order.dfs span:nth-child(2), .order.dfs span:nth-child(4), .order.dfs span:nth-child(5) { border-color: var(--green); color: var(--green); }
+
+    .maze-map { width: fit-content; max-width: 100%; margin: 16px auto; padding: 14px 18px; border: 1px solid var(--line); border-radius: 12px; background: #0b101a; color: #90a0b9; font: clamp(.85rem, 2.2vw, 1.15rem)/1.55 Consolas, monospace; overflow-x: auto; }
+    .maze-map .route { color: var(--green); font-weight: 800; }
+    .maze-map .start { color: white; background: #287c5b; }
+    .maze-map .goal { color: white; background: #9a5c1f; }
+    .legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: .85rem; }
+    .legend b { color: var(--text); }
+
+    table { width: 100%; margin-top: 22px; border-collapse: collapse; overflow: hidden; border-radius: 12px; background: #151d2d; }
+    th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--blue); background: #202c42; }
+    tr:last-child td { border-bottom: 0; }
+    pre { max-width: 100%; margin: 12px 0; padding: 18px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: #0b101a; color: #dce8f7; font: .9rem/1.6 Consolas, monospace; }
+    .controls { border-top: 1px solid var(--line); }
+    .controls button { min-width: 112px; padding: 10px 15px; border: 1px solid #41516d; border-radius: 10px; background: #202c42; color: var(--text); cursor: pointer; }
+    .controls button:hover:not(:disabled) { border-color: var(--blue); background: #293a56; }
+    .controls button:disabled { opacity: .42; cursor: not-allowed; }
+    .counter { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .controls .right { display: flex; gap: 10px; }
+    :focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
+
+    @media (max-height: 900px) and (min-width: 701px) {
+      .slide { padding: 20px 34px; }
+      h1 { margin: 8px 0; font-size: clamp(2.4rem, 5.5vw, 4.2rem); }
+      h2 { margin: 4px 0 12px; font-size: clamp(1.7rem, 3.2vw, 2.4rem); }
+      p { margin: 5px 0 8px; }
+      .grid { gap: 10px; margin-top: 6px; }
+      .card { padding: 12px; }
+      .card h3 { margin-bottom: 4px; }
+      .callout { margin-top: 10px; padding: 12px 14px; }
+      .math { margin: 10px 0; padding: 12px; }
+      .tree-wrap { width: min(420px, 100%); margin: 2px auto; }
+      .order { margin: 0; }
+      table { margin-top: 12px; }
+      th, td { padding: 8px 10px; }
+    }
+
+    @media (max-width: 700px) {
+      .deck { width: 100%; height: 100vh; height: 100dvh; margin: 0; border-radius: 0; }
+      .slide { padding: clamp(20px, 5vw, 36px); }
+      .grid, .grid.three { grid-template-columns: 1fr; }
+      .topbar, .controls { padding: 12px 16px; }
+      .key-hint { display: none; }
+      .controls button { min-width: 88px; }
+      th, td { padding: 10px 8px; font-size: .88rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+
+    @media print {
+      body { background: white; color: #172033; }
+      body { overflow: visible; }
+      .deck { width: auto; height: auto; margin: 0; overflow: visible; border: 0; box-shadow: none; background: white; }
+      .topbar, .controls, .progress { display: none; }
+      .slides { min-height: 0; overflow: visible; }
+      .slide, .slide.active { display: flex !important; height: auto; min-height: 100vh; overflow: visible; break-after: page; color: #172033; background: white; }
+      .card, .math, pre, table { break-inside: avoid; }
+      p, .callout { color: #34425a; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" aria-label="Presentación sobre búsqueda en amplitud y profundidad">
+    <header class="topbar">
+      <div class="brand"><strong>Guía en las Sombras</strong> · Estructuras de datos</div>
+      <div class="key-hint">Navega con ← → · Pantalla completa: F</div>
+    </header>
+    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+    <div class="slides">
+      <section class="slide active" aria-label="Diapositiva 1">
+        <div class="eyebrow">Estructuras de datos · recorridos en árboles</div>
+        <h1>Recorridos de<br>árboles en<br><span class="accent">amplitud</span> y <span class="green">profundidad</span></h1>
+        <p class="lead">Qué son estos recorridos, cómo cambian el orden de visita y cómo las mismas ideas ayudan a buscar caminos en el juego Guía en las Sombras.</p>
+        <div class="callout">Del árbol como estructura de datos al código real que explora el laberinto, paso a paso.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 2">
+        <div class="eyebrow">01 · El tema central</div>
+        <h2>¿Qué es recorrer un árbol?</h2>
+        <p>Un <b>recorrido</b> visita los nodos de una estructura siguiendo una regla. No visitamos al azar: definimos qué nodo procesar primero y qué hacer con sus hijos.</p>
+        <div class="grid three">
+          <article class="card"><span class="tag">Árbol</span><h3 style="margin-top:12px">Conectado y sin ciclos</h3><p>Entre la raíz y cada nodo hay un único camino; cada nodo (salvo la raíz) tiene un solo padre.</p></article>
+          <article class="card"><span class="tag">Arista</span><h3 style="margin-top:12px">Relación</h3><p>Conecta un nodo con sus hijos; en el laberinto representa un paso legal.</p></article>
+          <article class="card"><span class="tag">Recorrido</span><h3 style="margin-top:12px">Orden de visita</h3><p>Una estrategia para decidir qué nodo procesamos ahora y cuál después.</p></article>
+        </div>
+        <div class="callout">Idea clave: amplitud significa avanzar nivel por nivel; profundidad significa seguir una rama antes de retroceder.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 3">
+        <div class="eyebrow">02 · Anatomía del árbol</div>
+        <h2>Raíz, padre, hijo, hoja y nivel</h2>
+        <div class="tree-wrap">
+          <svg class="tree" viewBox="0 0 600 340" role="img" aria-label="Árbol con raíz 1, hijos 2 y 3, y hojas 4, 5, 6 y 7">
+            <line x1="300" y1="55" x2="165" y2="145"/><line x1="300" y1="55" x2="435" y2="145"/>
+            <line x1="165" y1="165" x2="90" y2="255"/><line x1="165" y1="165" x2="240" y2="255"/>
+            <line x1="435" y1="165" x2="360" y2="255"/><line x1="435" y1="165" x2="510" y2="255"/>
+            <circle cx="300" cy="45" r="27"/><text x="300" y="45">1</text>
+            <circle cx="165" cy="155" r="27"/><text x="165" y="155">2</text>
+            <circle cx="435" cy="155" r="27"/><text x="435" y="155">3</text>
+            <circle cx="90" cy="265" r="27"/><text x="90" y="265">4</text>
+            <circle cx="240" cy="265" r="27"/><text x="240" y="265">5</text>
+            <circle cx="360" cy="265" r="27"/><text x="360" y="265">6</text>
+            <circle cx="510" cy="265" r="27"/><text x="510" y="265">7</text>
+          </svg>
+        </div>
+        <div class="grid">
+          <div class="card"><span class="tag">Por niveles · BFS</span><div class="order bfs" aria-label="Orden BFS: uno, dos, tres, cuatro, cinco, seis, siete"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div><p>Primero la raíz <b>1</b>; luego sus hijos <b>2 y 3</b>; después el siguiente nivel <b>4, 5, 6 y 7</b>.</p></div>
+          <div class="card"><span class="tag">Preorden · DFS</span><div class="order dfs" aria-label="Orden DFS en preorden: uno, dos, cuatro, cinco, tres, seis, siete"><span>1</span><span>2</span><span>4</span><span>5</span><span>3</span><span>6</span><span>7</span></div><p>Visita <b>1</b>, baja a <b>2</b>, termina esa rama (<b>4, 5</b>) y vuelve a <b>3</b>.</p></div>
+        </div>
+        <p>Nivel 0: raíz <b>1</b>; nivel 1: <b>2 y 3</b>; nivel 2: hojas <b>4–7</b>. Altura: <b>2 aristas</b>.</p>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 4">
+        <div class="eyebrow">03 · Recorrido en amplitud</div>
+        <h2>BFS: nivel completo antes de bajar</h2>
+        <p><b>BFS</b> (Breadth-First Search) empieza en la raíz y visita primero todos los nodos de un nivel. Solo cuando acaba ese nivel pasa al siguiente.</p>
+        <div class="grid">
+          <article class="card"><h3 class="accent">Recorrido del árbol</h3><p>Nivel 0: <b>1</b><br>Nivel 1: <b>2, 3</b><br>Nivel 2: <b>4, 5, 6, 7</b></p><div class="math">BFS: 1 → 2 → 3 → 4 → 5 → 6 → 7</div></article>
+          <article class="card"><h3>¿Qué hace que sea “por amplitud”?</h3><p>Antes de alejarse de la raíz, visita todas las opciones igual de cercanas. Es como ondas que se expanden: primero radio 0, luego radio 1, luego radio 2.</p><p>La distancia es el número de aristas desde la raíz.</p></article>
+        </div>
+        <div class="callout">El nombre del recorrido en árboles suele ser <b>recorrido por niveles</b> o <b>level-order</b>. En un árbol, BFS calcula también niveles y distancias desde la raíz.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 5">
+        <div class="eyebrow">04 · Recorrido en profundidad</div>
+        <h2>DFS: llegar al fondo y regresar</h2>
+        <p><b>DFS</b> (Depth-First Search) visita un nodo y continúa hacia uno de sus hijos, profundizando hasta llegar a una hoja; luego retrocede para explorar las ramas pendientes.</p>
+        <div class="grid">
+          <article class="card"><h3 class="green">DFS en preorden</h3><p>Primero procesamos el nodo; después, su subárbol izquierdo y luego el derecho.</p><div class="math">1 → 2 → 4 → 5 → 3 → 6 → 7</div></article>
+          <article class="card"><h3>El retroceso no borra el recorrido</h3><p>Cuando llegamos a 4, no hay más hijos: regresamos a 2 y probamos 5. Al terminar el subárbol de 2, regresamos a la raíz y exploramos 3.</p><p>La pila o la recursión recuerda dónde continuar.</p></article>
+        </div>
+        <div class="callout warning">“Profundidad” no significa que el árbol sea más profundo: describe el orden de exploración, bajando por una rama antes de cambiar a otra.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 6">
+        <div class="eyebrow">05 · Los recorridos DFS en árboles</div>
+        <h2>Preorden, inorden y postorden</h2>
+        <p>En un árbol binario, DFS puede nombrarse según <b>cuándo procesamos el nodo respecto a sus hijos</b>. El recorrido del juego no es inorden: usa una pila para buscar en un grafo.</p>
+        <div class="grid three">
+          <article class="card"><span class="tag">Preorden</span><h3 style="margin-top:12px">Nodo · Izquierda · Derecha</h3><p><b>1, 2, 4, 5, 3, 6, 7</b><br>Útil para copiar o serializar un árbol.</p></article>
+          <article class="card"><span class="tag">Inorden</span><h3 style="margin-top:12px">Izquierda · Nodo · Derecha</h3><p><b>4, 2, 5, 1, 6, 3, 7</b><br>En un árbol binario de búsqueda produce valores ordenados.</p></article>
+          <article class="card"><span class="tag">Postorden</span><h3 style="margin-top:12px">Izquierda · Derecha · Nodo</h3><p><b>4, 5, 2, 6, 7, 3, 1</b><br>Útil cuando los hijos deben procesarse antes que el padre.</p></article>
+        </div>
+        <div class="callout">Los tres son recorridos en profundidad: lo que cambia es el momento de procesar el nodo. En grafos generales usamos visitados para no entrar en ciclos.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 7">
+        <div class="eyebrow">06 · Comparación</div>
+        <h2>Amplitud y profundidad lado a lado</h2>
+        <table>
+          <thead><tr><th>Aspecto</th><th>BFS · amplitud</th><th>DFS · profundidad</th></tr></thead>
+          <tbody>
+            <tr><td>Estructura</td><td>Cola FIFO</td><td>Pila LIFO o recursión</td></tr>
+            <tr><td>Orden</td><td>Por distancia / niveles</td><td>Una rama antes que las demás</td></tr>
+            <tr><td>Ruta más corta sin pesos</td><td><b class="green">Sí, la garantiza</b></td><td>No</td></tr>
+            <tr><td>Orden en árbol</td><td>Por niveles</td><td>Preorden, inorden o postorden</td></tr>
+            <tr><td>Memoria en árbol</td><td>Puede guardar un nivel amplio</td><td>Recursivo: proporcional a la altura h</td></tr>
+            <tr><td>Usos</td><td>Niveles, distancia mínima</td><td>Explorar ramas, procesar subárboles</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">Tanto BFS como DFS visitan cada nodo una vez: tiempo O(n) en un árbol. En árboles, BFS puede requerir O(n) memoria; DFS recursivo requiere O(h), donde h es la altura.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 8">
+        <div class="eyebrow">07 · Del concepto al juego</div>
+        <h2>El juego no recibe un árbol ya hecho</h2>
+        <p><code>nivel1.txt</code> es una matriz. Para resolverla, tratamos cada celda transitable como un nodo y cada paso legal como una arista: así obtenemos un <b>grafo</b>.</p>
+        <pre class="maze-map" aria-label="Nivel fácil 9 por 11; ruta mínima en verde">###########
+#<span class="start">E</span><span class="route">****</span>#...#
+#####<span class="route">*</span>###.#
+#<span class="route">*****</span>#<span class="route">***</span>#
+#<span class="route">*</span>#####<span class="route">*</span>#<span class="route">*</span>#
+#<span class="route">*</span>#..<span class="route">***</span>#<span class="route">*</span>#
+#<span class="route">*</span>###<span class="route">*</span>###<span class="route">*</span>#
+#<span class="route">*****</span>#..<span class="goal">S</span>#
+###########</pre>
+        <div class="grid three">
+          <article class="card"><h3>Matriz</h3><p>El archivo guarda 0, 1, 2 y 3; no guarda enlaces explícitos.</p></article>
+          <article class="card"><h3>Vecinos</h3><p><code>_vecinos()</code> calcula arriba, abajo, izquierda y derecha; filtra límites y paredes.</p></article>
+          <article class="card"><h3>Árbol de búsqueda</h3><p>Desde la entrada, los predecesores forman un árbol con las celdas que se van descubriendo.</p></article>
+        </div>
+        <div class="callout">Precisión importante: el laberinto es un grafo; el árbol es la estructura que genera la búsqueda al registrar el primer predecesor de cada celda.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 9">
+        <div class="eyebrow">08 · Cómo representa el juego el laberinto</div>
+        <h2>Matriz → vecinos → grafo</h2>
+        <div class="grid three">
+          <article class="card"><span class="tag">1 · Leer</span><h3 style="margin-top:12px">Una coordenada</h3><p>El nodo actual es, por ejemplo, <code>(5, 5)</code>: fila 5, columna 5.</p></article>
+          <article class="card"><span class="tag">2 · Proponer</span><h3 style="margin-top:12px">Cuatro direcciones</h3><p>Se consideran arriba, abajo, izquierda y derecha; los diagonales no cuentan como movimiento.</p></article>
+          <article class="card"><span class="tag">3 · Filtrar</span><h3 style="margin-top:12px">Solo pasos válidos</h3><p>Se descartan coordenadas fuera del mapa, paredes y celdas que ya fueron descubiertas.</p></article>
+        </div>
+        <pre># src/busqueda.py
+for vecino in _vecinos(matriz, actual):
+    if vecino not in predecesores:
+        predecesores[vecino] = actual
+        frontera.append(vecino)</pre>
+        <div class="callout">Árbol de recorrido: cada celda nueva queda conectada a la celda desde la que se descubrió. Los predecesores forman un árbol con raíz en la entrada.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 10">
+        <div class="eyebrow">09 · Código BFS</div>
+        <h2>Cola FIFO en el juego</h2>
+        <pre># BFS: primero en entrar, primero en salir
+cola = deque([entrada])
+predecesores = {entrada: None}
+
+while cola:
+    actual = cola.popleft()
+    if actual == salida:
+        return reconstruir(predecesores, salida)
+
+    for vecino in vecinos(actual):
+        if vecino not in predecesores:
+            predecesores[vecino] = actual
+            cola.append(vecino)</pre>
+        <div class="grid">
+          <article class="card"><h3>La cola</h3><p><code>popleft()</code> procesa lo descubierto primero; <code>append()</code> agrega lo nuevo al final.</p></article>
+          <article class="card"><h3>La condición de término</h3><p>Al sacar la salida de la cola, ya se conoce su ruta mínima porque BFS procesó antes todas las distancias menores.</p></article>
+        </div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 11">
+        <div class="eyebrow">10 · Código DFS</div>
+        <h2>Pila LIFO en el juego</h2>
+        <pre># DFS iterativo: último en entrar, primero en salir
+pila = [entrada]
+predecesores = {entrada: None}
+
+while pila:
+    actual = pila.pop()
+    if actual == salida:
+        return reconstruir(predecesores, salida)
+
+    for vecino in reversed(vecinos(actual)):
+        if vecino not in predecesores:
+            predecesores[vecino] = actual
+            pila.append(vecino)</pre>
+        <div class="callout">La diferencia clave con BFS está en la frontera: cola con <code>popleft()</code> versus pila con <code>pop()</code>. Revertir los vecinos mantiene el orden de exploración elegido.</div>
+        <p>Este DFS es iterativo; no usa llamadas recursivas. La pila explícita guarda las posiciones pendientes.</p>
+        <p>La función del proyecto es <code>buscar_camino_profundidad()</code>; la versión BFS se llama <code>buscar_camino_amplitud()</code>. Ambas están en <code>src/busqueda.py</code>.</p>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 12">
+        <div class="eyebrow">11 · Traza real de BFS</div>
+        <h2>¿Qué pasa en un cruce del nivel 1?</h2>
+        <p>En la coordenada <code>(5, 5)</code> hay dos caminos nuevos: el callejón <code>(5, 4)</code> y el camino hacia la meta <code>(5, 6)</code>. La lista muestra la cola con el siguiente elemento a la izquierda.</p>
+        <table class="trace">
+          <thead><tr><th>Acción</th><th>Cola después de agregar vecinos</th><th>Qué aprendió BFS</th></tr></thead>
+          <tbody>
+            <tr><td>Procesa (5,5)</td><td>[(5,4), (5,6)]</td><td>Los dos están a un paso del cruce.</td></tr>
+            <tr><td>Sale (5,4)</td><td>[(5,6), (5,3)]</td><td>Descubre el pasillo que termina en (5,3).</td></tr>
+            <tr><td>Sale (5,6)</td><td>[(5,3), (5,7)]</td><td>Continúa hacia la salida mientras deja en espera el callejón.</td></tr>
+            <tr><td>Sale (5,3)</td><td>[(5,7)]</td><td>El callejón se agota; BFS no pierde la otra opción.</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">El orden de la cola explica el recorrido en amplitud: procesa cada posición descubierta por orden de llegada.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 13">
+        <div class="eyebrow">12 · Traza real de DFS</div>
+        <h2>El mismo cruce: primero a fondo</h2>
+        <p>En el mismo punto <code>(5, 5)</code>, el código apila primero <code>(5, 6)</code> y luego <code>(5, 4)</code>. El último queda encima y se explora antes.</p>
+        <table class="trace">
+          <thead><tr><th>Acción</th><th>Pila · tope a la derecha</th><th>Qué hace DFS</th></tr></thead>
+          <tbody>
+            <tr><td>Apila opciones</td><td>[(5,6), (5,4)]</td><td>Deja ambos caminos pendientes.</td></tr>
+            <tr><td>Sale (5,4)</td><td>[(5,6), (5,3)]</td><td>Se mete por el callejón.</td></tr>
+            <tr><td>Sale (5,3)</td><td>[(5,6)]</td><td>No encuentra salida; retrocede.</td></tr>
+            <tr><td>Sale (5,6)</td><td>…</td><td>Retoma la otra opción y avanza hacia la meta.</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warning">Comparación visible: BFS conserva el camino próximo en la cola y avanza por capas; DFS se interna en una rama y después vuelve a la opción pendiente.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 14">
+        <div class="eyebrow">13 · El árbol que construye la búsqueda</div>
+        <h2>Predecesores: el árbol de exploración</h2>
+        <p>Durante la búsqueda, cada posición nueva recibe un único padre: la posición desde la que fue descubierta primero.</p>
+        <div class="math">predecesores[(1,2)] = (1,1)<br>predecesores[(1,3)] = (1,2)<br>predecesores[(1,4)] = (1,3)<br>predecesores[(1,5)] = (1,4)</div>
+        <div class="grid">
+          <article class="card"><h3>Raíz</h3><p>La entrada <code>(1,1)</code> no tiene padre: su predecesor es <code>None</code>.</p></article>
+          <article class="card"><h3>Ramas</h3><p>Cuando el buscador encuentra varios vecinos, el orden depende de BFS o DFS. El primer descubrimiento queda registrado como padre.</p></article>
+        </div>
+        <div class="callout">Este árbol de predecesores es el puente entre “recorrer” y “obtener una ruta”: conserva un camino desde la raíz hasta cada nodo alcanzado.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 15">
+        <div class="eyebrow">14 · De búsqueda a solución</div>
+        <h2>Reconstruimos la ruta al revés</h2>
+        <div class="grid">
+          <article class="card"><span class="tag">Al encontrar la meta</span><h3 style="margin-top:12px">Seguir padres</h3><div class="math">(7,9) ← (6,9) ← (5,9)<br>← … ← (1,2) ← (1,1)</div><p>Se inicia en la salida y se consulta el predecesor de cada posición.</p></article>
+          <article class="card"><span class="tag">Para mostrarla</span><h3 style="margin-top:12px">Invertir la lista</h3><div class="math">(1,1) → (1,2) → … → (7,9)</div><p>Así obtenemos el orden natural desde la entrada hasta la salida.</p></article>
+        </div>
+        <p>Las funciones <code>buscar_camino_amplitud()</code> y <code>buscar_camino_profundidad()</code> devuelven una lista ordenada de coordenadas o <code>None</code> si no hay ruta. En <code>src/busqueda.py</code>, <code>_reconstruir_camino()</code> recorre los predecesores y revierte la lista; <code>src/juego.py</code> imprime la ruta con <code>*</code>.</p>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 16">
+        <div class="eyebrow">15 · Árbol frente a grafo</div>
+        <h2>¿Por qué necesitamos “visitados”?</h2>
+        <div class="grid">
+          <article class="card"><h3>En un árbol</h3><p>Existe un único camino entre dos nodos. Al bajar a los hijos no se regresa por otro enlace al mismo nodo.</p></article>
+          <article class="card"><h3>En un grafo</h3><p>Puede haber ciclos y varias rutas. Un nodo podría aparecer como vecino de distintos lugares.</p></article>
+        </div>
+        <div class="math">si vecino no está en predecesores:<br>　predecesores[vecino] = actual<br>　agregar vecino a cola o pila</div>
+        <div class="callout">El diccionario <code>predecesores</code> cumple dos funciones: marca lo ya descubierto y conserva el padre. Así el grafo no causa ciclos infinitos ni trabajo duplicado.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 17">
+        <div class="eyebrow">16 · Resultados del proyecto</div>
+        <h2>Mismo árbol de pasillos, diferente orden</h2>
+        <p>Los tres mapas fueron generados como laberintos de ruta única. El grafo de celdas transitables es un árbol: no tiene ciclos y tiene una sola ruta entre entrada y salida.</p>
+        <table>
+          <thead><tr><th>Nivel</th><th>Dimensiones</th><th>Movimientos de la única ruta</th><th>BFS y DFS</th></tr></thead>
+          <tbody>
+            <tr><td>Fácil</td><td>9 × 11</td><td>30</td><td>Ruta idéntica</td></tr>
+            <tr><td>Medio</td><td>15 × 15</td><td>68</td><td>Ruta idéntica</td></tr>
+            <tr><td>Difícil</td><td>21 × 21</td><td>152</td><td>Ruta idéntica</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warning">Aunque la ruta solución coincide en estos mapas, BFS y DFS no visitan los pasillos en el mismo orden. Con ciclos o caminos alternativos, la diferencia en la ruta encontrada también puede notarse.</div>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 18">
+        <div class="eyebrow">17 · Complejidad</div>
+        <h2>¿Cuánto cuesta recorrer?</h2>
+        <div class="grid three">
+          <article class="card"><h3>Tiempo en árbol</h3><p>O(n): cada nodo se procesa una vez, tanto con BFS como con DFS.</p></article>
+          <article class="card"><h3>Tiempo en grafo</h3><p>O(V + E): se descubren vértices y se revisan conexiones sin repetir visitas.</p></article>
+          <article class="card"><h3>Matriz R × C</h3><p>Como cada celda tiene como máximo 4 vecinos, el peor caso es O(R × C).</p></article>
+        </div>
+        <div class="callout">Memoria: una cola BFS puede crecer hasta el ancho de un nivel; una pila DFS conserva la rama y opciones pendientes. En grafos generales ambas estructuras y visitados pueden llegar a O(V).</div>
+        <p>BFS encuentra la ruta con menos aristas si todos los movimientos tienen el mismo costo. Si los pasos costaran diferente, usaríamos una búsqueda ponderada, como Dijkstra.</p>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 19">
+        <div class="eyebrow">18 · Demostración en vivo</div>
+        <h2>Ver los recorridos dentro del juego</h2>
+        <div class="grid">
+          <article class="card"><span class="tag">Opción 2</span><h3 style="margin-top:12px">Resolver con BFS</h3><p>Elige amplitud, selecciona un nivel y observa la ruta mínima resaltada con estrellas.</p></article>
+          <article class="card"><span class="tag">Opción 3</span><h3 style="margin-top:12px">Resolver con DFS</h3><p>Elige profundidad y el mismo nivel; observa cómo encuentra una ruta usando una pila.</p></article>
+        </div>
+        <div class="math">python main.py<br>2 → nivel 1<br>3 → nivel 1</div>
+        <p>Para comparar el orden completo, usa el cruce de la diapositiva 12 y 13: el juego muestra la solución final, no cada celda examinada.</p>
+      </section>
+
+      <section class="slide" aria-label="Diapositiva 20">
+        <div class="eyebrow">19 · Cierre</div>
+        <h2>Cuatro ideas para llevar</h2>
+        <div class="grid">
+          <article class="card"><h3>Árbol</h3><p>Nodos conectados en relaciones padre-hijo y sin ciclos.</p></article>
+          <article class="card"><h3>BFS</h3><p>Recorrido por niveles; la cola FIFO mantiene el orden de llegada.</p></article>
+          <article class="card"><h3>DFS</h3><p>Recorrido por ramas; la pila LIFO permite profundizar y retroceder.</p></article>
+          <article class="card"><h3>El juego</h3><p>El laberinto es un grafo; el mapa de predecesores forma el árbol de búsqueda que produce la ruta.</p></article>
+        </div>
+        <div class="callout">Pregunta final: si necesitas el menor número de pasos, ¿qué recorrido eliges y qué estructura de datos necesita?</div>
+      </section>
+    </div>
+    <footer class="controls">
+      <button id="previous" type="button" aria-label="Diapositiva anterior">← Anterior</button>
+      <span class="counter" id="counter" aria-live="polite">1 / 20</span>
+      <div class="right">
+        <button id="fullscreen" type="button" aria-label="Iniciar presentación en pantalla completa">⛶ Presentar</button>
+        <button id="next" type="button" aria-label="Diapositiva siguiente">Siguiente →</button>
+      </div>
+    </footer>
+  </main>
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const previous = document.querySelector("#previous");
+    const next = document.querySelector("#next");
+    const counter = document.querySelector("#counter");
+    const progress = document.querySelector("#progress");
+    let current = 0;
+
+    function showSlide(index) {
+      current = Math.max(0, Math.min(index, slides.length - 1));
+      slides.forEach((slide, position) => {
+        slide.classList.toggle("active", position === current);
+        slide.setAttribute("aria-hidden", String(position !== current));
+      });
+      counter.textContent = `${current + 1} / ${slides.length}`;
+      progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+      previous.disabled = current === 0;
+      next.disabled = current === slides.length - 1;
+    }
+
+    previous.addEventListener("click", () => showSlide(current - 1));
+    next.addEventListener("click", () => showSlide(current + 1));
+    document.querySelector("#fullscreen").addEventListener("click", async () => {
+      if (!document.fullscreenElement) {
+        await document.querySelector(".deck").requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+        event.preventDefault();
+        showSlide(current + 1);
+      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        showSlide(current - 1);
+      } else if (event.key.toLowerCase() === "f") {
+        document.querySelector("#fullscreen").click();
+      } else if (event.key === "Home") {
+        showSlide(0);
+      } else if (event.key === "End") {
+        showSlide(slides.length - 1);
+      }
+    });
+
+    showSlide(0);
+  </script>
+</body>
+</html>
